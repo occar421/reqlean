@@ -1,0 +1,10 @@
+name = "reqlean"
+version = "0.1.0"
+defaultTargets = ["reqlean"]
+
+[[lean_lib]]
+name = "Reqlean"
+
+[[lean_exe]]
+name = "reqlean"
+root = "Main"
