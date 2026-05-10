@@ -3,7 +3,11 @@
   Based on https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/mdast/index.d.ts
 -/
 
+import Lean
+
 namespace Mdast
+
+open Lean
 
 -- ## Enumerations
 
@@ -19,6 +23,9 @@ instance : ToString AlignType where
     | .center => "center"
     | .right => "right"
 
+instance : ToFormat AlignType where
+  format := fun a => f!"{toString a}"
+
 inductive ReferenceType where
   | shortcut
   | collapsed
@@ -30,6 +37,9 @@ instance : ToString ReferenceType where
     | .shortcut => "shortcut"
     | .collapsed => "collapsed"
     | .full => "full"
+
+instance : ToFormat ReferenceType where
+  format := fun r => f!"{toString r}"
 
 -- ## Unist base types
 
@@ -97,6 +107,43 @@ inductive MdastNode where
   | break_ (position : Option Position := none)
   deriving Repr, Inhabited
 
+mutual
+partial def MdastNode.toFormat : MdastNode → Format
+  | .root cs _ => formatNode "root" [] cs
+  | .heading d cs _ => formatNode "heading" [("depth", f!"{d}")] cs
+  | .paragraph cs _ => formatNode "paragraph" [] cs
+  | .text v _ => f!"(text value: \"{v}\")"
+  | .strong cs _ => formatNode "strong" [] cs
+  | .link url ti cs _ => 
+    let attrs := [("url", f!"\"{url}\"")]
+    let attrs := if let some t := ti then attrs ++ [("title", f!"\"{t}\"")] else attrs
+    formatNode "link" attrs cs
+  | .code v lang mt _ => codeToFormat v lang mt
+  -- 他のケースも同様に formatNode を使って記述...
+  | _ => f!"(unimplemented_node)"
+
+private partial def codeToFormat (v: String) (lang mt: Option String) : Format := Id.run do
+    let mut attrs := [("value", f!"\"{v}\"")]
+    if let some l := lang then attrs := attrs ++ [("lang", f!"\"{l}\"")]
+    if let some m := mt then attrs := attrs ++ [("meta", f!"\"{m}\"")]
+    return formatNode "code" attrs
+
+-- ヘルパー：属性と子要素をまとめてフォーマットする
+private partial def formatNode (name : String) (attrs : List (String × Format) := []) (children : Array MdastNode := #[]) : Format :=
+  let attrFmt := attrs.map fun (k, v) => f!"{k}: {v}"
+  -- 子要素を再帰的に format する（ここでは後述の toFormat を想定）
+  let childFmts := children.toList.map MdastNode.toFormat
+  let allItems := attrFmt ++ childFmts
+  
+  if allItems.isEmpty then
+    f!"({name})"
+  else
+    -- 全体をグループ化し、nest 2 でインデントを付ける
+    -- Format.line は「必要があれば改行、なければスペース」として振る舞う
+    let body := Format.joinSep allItems ("," ++ Format.line)
+    Format.group (f!"({name}" ++ Format.nest 2 (Format.line ++ body) ++ ")")
+end
+
 private def optStr (label : String) (o : Option String) : String :=
   match o with | some v => ", " ++ label ++ ": \"" ++ v ++ "\"" | none => ""
 
@@ -156,5 +203,7 @@ where
 
 instance : ToString MdastNode where
   toString := childrenStr.MdastNode.toString
+
+-- TODO: regenerate ToFormat oriented code
 
 end Mdast
