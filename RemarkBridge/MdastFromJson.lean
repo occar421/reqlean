@@ -55,12 +55,12 @@ private def parseReferenceType (s : String) : Except String ReferenceType :=
   | "full" => .ok .full
   | other => .error s!"unknown referenceType: {other}"
 
-private partial def fromJson (j : Json) : Except String MdastNode := do
+private partial def fromJsonAux (j : Json) : Except String MdastNode := do
   let type ← j.getObjValAs? String "type"
   let pos := getPosition j
   let parseChildren : Except String (Array MdastNode) := do
     match j.getObjVal? "children" with
-    | .ok (Json.arr arr) => arr.mapM fromJson
+    | .ok (Json.arr arr) => arr.mapM fromJsonAux
     | .ok _ => .error "children is not an array"
     | .error _ => return #[]
   match type with
@@ -171,8 +171,6 @@ private partial def fromJson (j : Json) : Except String MdastNode := do
   | other => .error s!"unknown node type: {other}"
 
 /-- Parse a JSON string into an MdastNode. -/
-def fromJsonString (s : String) : Except String MdastNode := do
-  let json ← Json.parse s
-  fromJson json
+def fromJson (json : Json) : Except String MdastNode := fromJsonAux json
 
 end Mdast

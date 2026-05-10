@@ -3,4 +3,6 @@ import Reqlean
 
 def main : IO Unit := do
   let result <- process
-  dbg_trace result
+  match result with
+  | .ok result => dbg_trace result
+  | .error e => dbg_trace e
