@@ -5,6 +5,9 @@ defaultTargets = ["reqlean"]
 [[lean_lib]]
 name = "Reqlean"
 
+[[lean_lib]]
+name = "RemarkBridge"
+
 [[lean_exe]]
 name = "reqlean"
 root = "Main"
