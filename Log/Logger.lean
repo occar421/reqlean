@@ -1,8 +1,10 @@
 import Log.LogLevel
+import Log.Color
 
 /-- ロガーの設定を保持する構造体 -/
 structure Logger where
   minLevel : LogLevel := .info
+  useColor : Bool := true
 
 /-- 共通のログ出力内部関数 -/
 def Logger.log (logger : Logger) (level : LogLevel) (msg : String) : IO Unit := do
@@ -10,11 +12,19 @@ def Logger.log (logger : Logger) (level : LogLevel) (msg : String) : IO Unit := 
   if level < logger.minLevel then
     return ()
 
-  let messagePrefix := match level with
-    | .debug => "[DEBUG]"
-    | .info  => "[INFO] "
-    | .warn  => "[WARN] "
-    | .error => "[ERROR]"
+  let messagePrefix :=
+    if logger.useColor then
+      match level with
+        | .debug => colorize gray   "[DEBUG]"
+        | .info  => colorize green  "[INFO] "
+        | .warn  => colorize yellow "[WARN] "
+        | .error => colorize red    "[ERROR]"
+    else
+      match level with
+        | .debug => "[DEBUG]"
+        | .info  => "[INFO] "
+        | .warn  => "[WARN] "
+        | .error => "[ERROR]"
 
   -- エラーと警告は標準エラー出力(stderr)、それ以外は標準出力(stdout)へ
   if level == .error || level == .warn then
