@@ -8,6 +8,14 @@ name = "Reqlean"
 [[lean_lib]]
 name = "RemarkBridge"
 
+[[lean_lib]]
+name = "Log"
+
 [[lean_exe]]
 name = "reqlean"
 root = "Main"
+
+[[require]]
+name = "batteries"
+scope = "leanprover-community"
+rev = "main"
