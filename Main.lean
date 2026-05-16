@@ -1,7 +1,7 @@
 import Lean
 import RemarkBridge
 import Reqlean
-import Log.Log
+import Log.Logger
 
 open Lean
 
