@@ -114,9 +114,6 @@ private def addOptStr (attrs : List (String × Format)) (k : String) (opt : Opti
   | some v => attrs ++ [(k, f!"\"{v}\"")]
   | none   => attrs
 
--- ## Mutual formatting logic
-
-mutual
 partial def MdastNode.toFormat : MdastNode → Format
   | .root cs p =>
     let attrs := addOpt [] "position" p
@@ -260,23 +257,20 @@ partial def MdastNode.toFormat : MdastNode → Format
   | .break_ p =>
     let attrs := addOpt [] "position" p
     formatNode "break" attrs #[]
-
--- ヘルパー：属性と子要素をまとめてフォーマットする
-private partial def formatNode (name : String) (attrs : List (String × Format) := []) (children : Array MdastNode := #[]) : Format :=
-  let attrFmt := attrs.map fun (k, v) => f!"{k}: {v}"
-  let childFmts := children.toList.map MdastNode.toFormat
-  let allItems := attrFmt ++ childFmts
-  
-  if allItems.isEmpty then
-    f!"({name})"
-  else
-    -- 全体をグループ化し、nest 2 でインデントを付ける
-    -- Format.line は「必要があれば改行、なければスペース」として振る舞う
-    let body := Format.joinSep allItems ("," ++ Format.line)
-    Format.group (f!"({name}" ++ Format.nest 2 (Format.line ++ body) ++ ")")
-end
-
--- ## Core Instances
+  where
+    -- ヘルパー：属性と子要素をまとめてフォーマットする
+    formatNode (name : String) (attrs : List (String × Format) := []) (children : Array MdastNode := #[]) : Format :=
+      let attrFmt := attrs.map fun (k, v) => f!"{k}: {v}"
+      let childFmts := children.toList.map MdastNode.toFormat
+      let allItems := attrFmt ++ childFmts
+      
+      if allItems.isEmpty then
+        f!"({name})"
+      else
+        -- 全体をグループ化し、nest 2 でインデントを付ける
+        -- Format.line は「必要があれば改行、なければスペース」として振る舞う
+        let body := Format.joinSep allItems ("," ++ Format.line)
+        Format.group (f!"({name}" ++ Format.nest 2 (Format.line ++ body) ++ ")")
 
 instance : ToFormat MdastNode where
   format := MdastNode.toFormat
