@@ -2,7 +2,7 @@ import RemarkBridge
 import Reqlean
 
 def main : IO Unit := do
-  let result <- process
+  let result <- process "./README.md"
   match result with
   | .ok result => dbg_trace result.toFormat
   | .error e => dbg_trace e

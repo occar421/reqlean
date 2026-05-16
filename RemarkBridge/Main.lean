@@ -4,10 +4,12 @@ import RemarkBridge.MdastFromJson
 
 open Lean Mdast
 
-def process: ExceptT String IO Mdast.MdastNode := do
+def process (path : System.FilePath) : ExceptT String IO Mdast.MdastNode := do
+  let path <- IO.FS.realPath path
+   
   let spawnArgs: IO.Process.SpawnArgs := {
     cmd := "bun.exe",
-    args := #["run", "main"],
+    args := #["run", "main", path.toString],
     cwd := pure $ "." / "remark-bridge"
   }
   let output <- IO.Process.output spawnArgs
