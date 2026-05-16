@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "main": "bun run index.ts"
+    "main": "remark --tree-out --rc-path ./.remarkrc.mjs --silent"
   },
   "devDependencies": {
     "@types/bun": "latest"
@@ -13,7 +13,6 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "remark-parse": "^11.0.0",
-    "unified": "^11.0.5"
+    "remark-cli": "^12.0.1"
   }
 }
