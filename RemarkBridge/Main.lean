@@ -4,9 +4,7 @@ import RemarkBridge.MdastFromJson
 
 open Lean Mdast
 
-def process (path : System.FilePath) : ExceptT String IO Mdast.MdastNode := do
-  let path <- IO.FS.realPath path
-   
+def process (path : System.FilePath) : ExceptT String IO Mdast.MdastNode := do  
   let spawnArgs: IO.Process.SpawnArgs := {
     cmd := "bun.exe",
     args := #["run", "main", path.toString],
@@ -19,7 +17,5 @@ def process (path : System.FilePath) : ExceptT String IO Mdast.MdastNode := do
   
   let json <- liftExcept <| Json.parse output.stdout
   let ast <- liftExcept <| Mdast.fromJson json
-  
-  -- TODO: implement logic
   
   pure $ ast -- temporary code to debug 

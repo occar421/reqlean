@@ -8,7 +8,13 @@ open Lean
 def main : IO Unit := do
   let logger : Logger := { minLevel := .debug }
 
-  let result <- process "./README.md"
+  let path <- IO.FS.realPath "./README.md"
+  logger.info s!"Read: {path}"
+
+  let result <- process path
+  
   match result with
-  | .ok result => logger.info s!"{result.toFormat}"
   | .error e => logger.error e
+  | .ok result =>
+    logger.debug s!"{result.toFormat}"
+    -- TODO implement logic
