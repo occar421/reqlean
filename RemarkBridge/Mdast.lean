@@ -23,9 +23,6 @@ instance : ToFormat AlignType where
     | .center => "center"
     | .right => "right"
 
-instance : ToString AlignType where
-  toString a := f!"{format a}".pretty
-
 inductive ReferenceType where
   | shortcut
   | collapsed
@@ -37,9 +34,6 @@ instance : ToFormat ReferenceType where
     | .shortcut => "shortcut"
     | .collapsed => "collapsed"
     | .full => "full"
-
-instance : ToString ReferenceType where
-  toString r := f!"{format r}".pretty
 
 -- ## Unist base types
 
@@ -54,9 +48,6 @@ instance : ToFormat Point where
     let off := match p.offset with | some o => f!", offset: {o}" | none => f!""
     f!"\{line: {p.line}, column: {p.column}{off}}"
 
-instance : ToString Point where
-  toString p := f!"{format p}".pretty
-
 structure Position where
   start : Point
   end_ : Point
@@ -65,9 +56,6 @@ structure Position where
 instance : ToFormat Position where
   format p :=
     f!"\{start: {format p.start}, end: {format p.end_}}"
-
-instance : ToString Position where
-  toString p := f!"{format p}".pretty
 
 -- ## Mdast Node (sum type)
 
@@ -292,8 +280,5 @@ end
 
 instance : ToFormat MdastNode where
   format := MdastNode.toFormat
-
-instance : ToString MdastNode where
-  toString n := f!"{format n}".pretty
 
 end Mdast
