@@ -17,14 +17,14 @@ inductive AlignType where
   | right
   deriving Repr, BEq, Inhabited
 
-instance : ToString AlignType where
-  toString
+instance : ToFormat AlignType where
+  format
     | .left => "left"
     | .center => "center"
     | .right => "right"
 
-instance : ToFormat AlignType where
-  format := fun a => f!"{toString a}"
+instance : ToString AlignType where
+  toString a := f!"{format a}".pretty
 
 inductive ReferenceType where
   | shortcut
@@ -32,14 +32,14 @@ inductive ReferenceType where
   | full
   deriving Repr, BEq, Inhabited
 
-instance : ToString ReferenceType where
-  toString
+instance : ToFormat ReferenceType where
+  format
     | .shortcut => "shortcut"
     | .collapsed => "collapsed"
     | .full => "full"
 
-instance : ToFormat ReferenceType where
-  format := fun r => f!"{toString r}"
+instance : ToString ReferenceType where
+  toString r := f!"{format r}".pretty
 
 -- ## Unist base types
 
@@ -49,18 +49,25 @@ structure Point where
   offset : Option Nat := none
   deriving Repr, BEq, Inhabited
 
+instance : ToFormat Point where
+  format p :=
+    let off := match p.offset with | some o => f!", offset: {o}" | none => f!""
+    f!"\{line: {p.line}, column: {p.column}{off}}"
+
 instance : ToString Point where
-  toString p :=
-    let off := match p.offset with | some o => s!", offset: {o}" | none => ""
-    "{line: " ++ toString p.line ++ ", column: " ++ toString p.column ++ off ++ "}"
+  toString p := f!"{format p}".pretty
 
 structure Position where
   start : Point
   end_ : Point
   deriving Repr, BEq, Inhabited
 
+instance : ToFormat Position where
+  format p :=
+    f!"\{start: {format p.start}, end: {format p.end_}}"
+
 instance : ToString Position where
-  toString p := "{start: " ++ toString p.start ++ ", end: " ++ toString p.end_ ++ "}"
+  toString p := f!"{format p}".pretty
 
 -- ## Mdast Node (sum type)
 
@@ -107,31 +114,168 @@ inductive MdastNode where
   | break_ (position : Option Position := none)
   deriving Repr, Inhabited
 
+-- ## Format Helpers for Option types
+
+private def addOpt {α : Type} [ToFormat α] (attrs : List (String × Format)) (k : String) (opt : Option α) : List (String × Format) :=
+  match opt with
+  | some v => attrs ++ [(k, format v)]
+  | none   => attrs
+
+private def addOptStr (attrs : List (String × Format)) (k : String) (opt : Option String) : List (String × Format) :=
+  match opt with
+  | some v => attrs ++ [(k, f!"\"{v}\"")]
+  | none   => attrs
+
+-- ## Mutual formatting logic
+
 mutual
 partial def MdastNode.toFormat : MdastNode → Format
-  | .root cs _ => formatNode "root" [] cs
-  | .heading d cs _ => formatNode "heading" [("depth", f!"{d}")] cs
-  | .paragraph cs _ => formatNode "paragraph" [] cs
-  | .text v _ => f!"(text value: \"{v}\")"
-  | .strong cs _ => formatNode "strong" [] cs
-  | .link url ti cs _ => 
-    let attrs := [("url", f!"\"{url}\"")]
-    let attrs := if let some t := ti then attrs ++ [("title", f!"\"{t}\"")] else attrs
-    formatNode "link" attrs cs
-  | .code v lang mt _ => codeToFormat v lang mt
-  -- 他のケースも同様に formatNode を使って記述...
-  | _ => f!"(unimplemented_node)"
+  | .root cs p =>
+    let attrs := addOpt [] "position" p
+    formatNode "root" attrs cs
 
-private partial def codeToFormat (v: String) (lang mt: Option String) : Format := Id.run do
-    let mut attrs := [("value", f!"\"{v}\"")]
-    if let some l := lang then attrs := attrs ++ [("lang", f!"\"{l}\"")]
-    if let some m := mt then attrs := attrs ++ [("meta", f!"\"{m}\"")]
-    return formatNode "code" attrs
+  | .heading d cs p =>
+    let attrs := [("depth", f!"{d}")]
+    let attrs := addOpt attrs "position" p
+    formatNode "heading" attrs cs
+
+  | .paragraph cs p =>
+    let attrs := addOpt [] "position" p
+    formatNode "paragraph" attrs cs
+
+  | .blockquote cs p =>
+    let attrs := addOpt [] "position" p
+    formatNode "blockquote" attrs cs
+
+  | .list ord st sp cs p =>
+    let attrs := addOpt [] "ordered" ord
+    let attrs := addOpt attrs "start" st
+    let attrs := addOpt attrs "spread" sp
+    let attrs := addOpt attrs "position" p
+    formatNode "list" attrs cs
+
+  | .listItem ck sp cs p =>
+    let attrs := addOpt [] "checked" ck
+    let attrs := addOpt attrs "spread" sp
+    let attrs := addOpt attrs "position" p
+    formatNode "listItem" attrs cs
+
+  | .table al cs p =>
+    let attrs := match al with
+      | some arr =>
+        let fmts := arr.toList.map fun a => match a with | some v => format v | none => "none"
+        let alFmt := f!"[{Format.joinSep fmts ", "}]"
+        [("align", alFmt)]
+      | none => []
+    let attrs := addOpt attrs "position" p
+    formatNode "table" attrs cs
+
+  | .tableRow cs p =>
+    let attrs := addOpt [] "position" p
+    formatNode "tableRow" attrs cs
+
+  | .tableCell cs p =>
+    let attrs := addOpt [] "position" p
+    formatNode "tableCell" attrs cs
+
+  | .strong cs p =>
+    let attrs := addOpt [] "position" p
+    formatNode "strong" attrs cs
+
+  | .emphasis cs p =>
+    let attrs := addOpt [] "position" p
+    formatNode "emphasis" attrs cs
+
+  | .delete cs p =>
+    let attrs := addOpt [] "position" p
+    formatNode "delete" attrs cs
+
+  | .link url ti cs p =>
+    let attrs := [("url", f!"\"{url}\"")]
+    let attrs := addOptStr attrs "title" ti
+    let attrs := addOpt attrs "position" p
+    formatNode "link" attrs cs
+
+  | .linkReference ident lbl rt cs p =>
+    let attrs := [("identifier", f!"\"{ident}\"")]
+    let attrs := addOptStr attrs "label" lbl
+    let attrs := attrs ++ [("referenceType", format rt)]
+    let attrs := addOpt attrs "position" p
+    formatNode "linkReference" attrs cs
+
+  | .image url ti alt p =>
+    let attrs := [("url", f!"\"{url}\"")]
+    let attrs := addOptStr attrs "title" ti
+    let attrs := addOptStr attrs "alt" alt
+    let attrs := addOpt attrs "position" p
+    formatNode "image" attrs #[]
+
+  | .imageReference ident lbl rt alt p =>
+    let attrs := [("identifier", f!"\"{ident}\"")]
+    let attrs := addOptStr attrs "label" lbl
+    let attrs := attrs ++ [("referenceType", format rt)]
+    let attrs := addOptStr attrs "alt" alt
+    let attrs := addOpt attrs "position" p
+    formatNode "imageReference" attrs #[]
+
+  | .footnoteDefinition ident lbl cs p =>
+    let attrs := [("identifier", f!"\"{ident}\"")]
+    let attrs := addOptStr attrs "label" lbl
+    let attrs := addOpt attrs "position" p
+    formatNode "footnoteDefinition" attrs cs
+
+  | .footnoteReference ident lbl p =>
+    let attrs := [("identifier", f!"\"{ident}\"")]
+    let attrs := addOptStr attrs "label" lbl
+    let attrs := addOpt attrs "position" p
+    formatNode "footnoteReference" attrs #[]
+
+  | .text v p =>
+    let attrs := [("value", f!"\"{v}\"")]
+    let attrs := addOpt attrs "position" p
+    formatNode "text" attrs #[]
+
+  | .code v lang mt p =>
+    let attrs := [("value", f!"\"{v}\"")]
+    let attrs := addOptStr attrs "lang" lang
+    let attrs := addOptStr attrs "meta" mt
+    let attrs := addOpt attrs "position" p
+    formatNode "code" attrs #[]
+
+  | .inlineCode v p =>
+    let attrs := [("value", f!"\"{v}\"")]
+    let attrs := addOpt attrs "position" p
+    formatNode "inlineCode" attrs #[]
+
+  | .html v p =>
+    let attrs := [("value", f!"\"{v}\"")]
+    let attrs := addOpt attrs "position" p
+    formatNode "html" attrs #[]
+
+  | .yaml v p =>
+    let attrs := [("value", f!"\"{v}\"")]
+    let attrs := addOpt attrs "position" p
+    formatNode "yaml" attrs #[]
+
+  | .definition ident lbl url ti p =>
+    let attrs := [("identifier", f!"\"{ident}\"")]
+    let attrs := addOptStr attrs "label" lbl
+    let attrs := attrs ++ [("url", f!"\"{url}\"")]
+    let attrs := addOptStr attrs "title" ti
+    let attrs := addOpt attrs "position" p
+    formatNode "definition" attrs #[]
+
+  | .thematicBreak p =>
+    let attrs := addOpt [] "position" p
+    formatNode "thematicBreak" attrs #[]
+
+  | .break_ p =>
+    let attrs := addOpt [] "position" p
+    formatNode "break" attrs #[]
 
 -- ヘルパー：属性と子要素をまとめてフォーマットする
 private partial def formatNode (name : String) (attrs : List (String × Format) := []) (children : Array MdastNode := #[]) : Format :=
   let attrFmt := attrs.map fun (k, v) => f!"{k}: {v}"
-  -- 子要素を再帰的に format する（ここでは後述の toFormat を想定）
   let childFmts := children.toList.map MdastNode.toFormat
   let allItems := attrFmt ++ childFmts
   
@@ -144,66 +288,12 @@ private partial def formatNode (name : String) (attrs : List (String × Format) 
     Format.group (f!"({name}" ++ Format.nest 2 (Format.line ++ body) ++ ")")
 end
 
-private def optStr (label : String) (o : Option String) : String :=
-  match o with | some v => ", " ++ label ++ ": \"" ++ v ++ "\"" | none => ""
+-- ## Core Instances
 
-private def optBoolStr (label : String) (o : Option Bool) : String :=
-  match o with | some v => ", " ++ label ++ ": " ++ toString v | none => ""
-
-private def optNatStr (label : String) (o : Option Nat) : String :=
-  match o with | some v => ", " ++ label ++ ": " ++ toString v | none => ""
-
-private def posStr (p : Option Position) : String :=
-  match p with | some v => ", position: " ++ toString v | none => ""
-
-private partial def childrenStr (cs : Array MdastNode) : String :=
-  ", children: [" ++ ", ".intercalate (cs.toList.map MdastNode.toString) ++ "]"
-where
-  MdastNode.toString : MdastNode → String
-    | .root cs p => "(root" ++ childrenStr cs ++ posStr p ++ ")"
-    | .heading d cs p => "(heading, depth: " ++ toString d ++ childrenStr cs ++ posStr p ++ ")"
-    | .paragraph cs p => "(paragraph" ++ childrenStr cs ++ posStr p ++ ")"
-    | .blockquote cs p => "(blockquote" ++ childrenStr cs ++ posStr p ++ ")"
-    | .list ord st sp cs p =>
-      "(list" ++ optBoolStr "ordered" ord ++ optNatStr "start" st ++ optBoolStr "spread" sp ++ childrenStr cs ++ posStr p ++ ")"
-    | .listItem ck sp cs p =>
-      "(listItem" ++ optBoolStr "checked" ck ++ optBoolStr "spread" sp ++ childrenStr cs ++ posStr p ++ ")"
-    | .table al cs p =>
-      let alStr := match al with
-        | some arr => ", align: [" ++ ", ".intercalate (arr.toList.map fun a => match a with | some v => toString v | none => "none") ++ "]"
-        | none => ""
-      "(table" ++ alStr ++ childrenStr cs ++ posStr p ++ ")"
-    | .tableRow cs p => "(tableRow" ++ childrenStr cs ++ posStr p ++ ")"
-    | .tableCell cs p => "(tableCell" ++ childrenStr cs ++ posStr p ++ ")"
-    | .strong cs p => "(strong" ++ childrenStr cs ++ posStr p ++ ")"
-    | .emphasis cs p => "(emphasis" ++ childrenStr cs ++ posStr p ++ ")"
-    | .delete cs p => "(delete" ++ childrenStr cs ++ posStr p ++ ")"
-    | .link url ti cs p =>
-      "(link, url: \"" ++ url ++ "\"" ++ optStr "title" ti ++ childrenStr cs ++ posStr p ++ ")"
-    | .linkReference ident lbl rt cs p =>
-      "(linkReference, identifier: \"" ++ ident ++ "\"" ++ optStr "label" lbl ++ ", referenceType: " ++ toString rt ++ childrenStr cs ++ posStr p ++ ")"
-    | .image url ti alt p =>
-      "(image, url: \"" ++ url ++ "\"" ++ optStr "title" ti ++ optStr "alt" alt ++ posStr p ++ ")"
-    | .imageReference ident lbl rt alt p =>
-      "(imageReference, identifier: \"" ++ ident ++ "\"" ++ optStr "label" lbl ++ ", referenceType: " ++ toString rt ++ optStr "alt" alt ++ posStr p ++ ")"
-    | .footnoteDefinition ident lbl cs p =>
-      "(footnoteDefinition, identifier: \"" ++ ident ++ "\"" ++ optStr "label" lbl ++ childrenStr cs ++ posStr p ++ ")"
-    | .footnoteReference ident lbl p =>
-      "(footnoteReference, identifier: \"" ++ ident ++ "\"" ++ optStr "label" lbl ++ posStr p ++ ")"
-    | .text v p => "(text, value: \"" ++ v ++ "\"" ++ posStr p ++ ")"
-    | .code v lang mt p =>
-      "(code, value: \"" ++ v ++ "\"" ++ optStr "lang" lang ++ optStr "meta" mt ++ posStr p ++ ")"
-    | .inlineCode v p => "(inlineCode, value: \"" ++ v ++ "\"" ++ posStr p ++ ")"
-    | .html v p => "(html, value: \"" ++ v ++ "\"" ++ posStr p ++ ")"
-    | .yaml v p => "(yaml, value: \"" ++ v ++ "\"" ++ posStr p ++ ")"
-    | .definition ident lbl url ti p =>
-      "(definition, identifier: \"" ++ ident ++ "\"" ++ optStr "label" lbl ++ ", url: \"" ++ url ++ "\"" ++ optStr "title" ti ++ posStr p ++ ")"
-    | .thematicBreak p => "(thematicBreak" ++ posStr p ++ ")"
-    | .break_ p => "(break" ++ posStr p ++ ")"
+instance : ToFormat MdastNode where
+  format := MdastNode.toFormat
 
 instance : ToString MdastNode where
-  toString := childrenStr.MdastNode.toString
-
--- TODO: regenerate ToFormat oriented code
+  toString n := f!"{format n}".pretty
 
 end Mdast
