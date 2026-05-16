@@ -8,7 +8,7 @@ open Lean
 def main : IO Unit := do
   let logger : Logger := { minLevel := .debug }
 
-  let path <- IO.FS.realPath "./README.md"
+  let path <- IO.FS.realPath "./Gherkin.feature.md"
   logger.info s!"Read: {path}"
 
   let result <- process path
@@ -17,4 +17,8 @@ def main : IO Unit := do
   | .error e => logger.error e
   | .ok result =>
     logger.debug s!"{result.toFormat}"
-    -- TODO implement logic
+    -- TODO implement Markdown Gherkin syntax logic (in ts)
+      -- TODO "Feature:" definition syntax
+      -- TODO "Rule:" definition syntax
+      -- TODO "Scenario Outline:" definition syntax
+      -- TODO "Given" definition syntax
